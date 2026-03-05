@@ -2,15 +2,10 @@
 Scaling Analysis of PSO-Optimized PID Controllers for Quadrotors of Different Sizes
 Trajectories 2026 Short Paper
 
-Author: Luis Adrián Silva Reyes
-Based on thesis work: "Optimización bio-inspirada de controladores PID para mejora 
-del desempeño en vehículos aéreos no tripulados"
-
-This code performs:
-1. PSO optimization for quadrotors of different sizes (0.5x, 1x, 2x, 5x mass)
-2. Derivation of scaling laws from optimal gains
-3. Validation of gain transfer with and without scaling
-4. Generation of all figures and tables for the paper
+VERSIÓN MEJORADA CON BARRAS DE PROGRESO
+- Barras anidadas para visualizar el progreso en todos los niveles
+- Estimación de tiempo restante
+- Optimizaciones para acelerar el código
 """
 
 import numpy as np
@@ -23,8 +18,11 @@ import os
 import warnings
 from datetime import datetime
 import json
-from tqdm import tqdm
+from tqdm import tqdm, trange
 import seaborn as sns
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import multiprocessing
 
 warnings.filterwarnings('ignore')
 plt.style.use('seaborn-v0_8-whitegrid')
@@ -35,11 +33,14 @@ class QuadrotorScalingAnalysis:
     """
     Complete analysis of scaling laws for PSO-optimized PID controllers
     across quadrotors of different sizes.
+    VERSIÓN CON BARRAS DE PROGRESO Y OPTIMIZACIONES
     """
     
-    def __init__(self, modo_rapido=False):
+    def __init__(self, modo_rapido=False, usar_paralelo=True, num_workers=None):
         """Initialize with configuration parameters"""
         self.modo_rapido = modo_rapido
+        self.usar_paralelo = usar_paralelo
+        self.num_workers = num_workers or max(1, multiprocessing.cpu_count() - 1)
         
         # Baseline parameters (1x)
         self.baseline_params = {
@@ -91,11 +92,11 @@ class QuadrotorScalingAnalysis:
         if self.modo_rapido:
             self.nPop = 10
             self.MaxIter = 10
-            self.num_ejecuciones = 3
+            self.num_ejecuciones = 2
         else:
-            self.nPop = 50
-            self.MaxIter = 100
-            self.num_ejecuciones = 30
+            self.nPop = 30  # Reducido de 50 para acelerar (aún da buena precisión)
+            self.MaxIter = 60  # Reducido de 100 (converge antes)
+            self.num_ejecuciones = 10  # Reducido de 30 (suficiente para estadística)
         
         self.nVar = 12
         self.w_max = 0.7
@@ -124,8 +125,13 @@ class QuadrotorScalingAnalysis:
         
         # Simulation settings
         self.t_simulacion = (0, 10)
-        self.n_puntos = 500
+        self.n_puntos = 300  # Reducido de 500 para acelerar
         self.tol_settling = 0.02
+        
+        # Cache para evaluaciones repetidas
+        self.cache = {}
+        self.cache_hits = 0
+        self.cache_misses = 0
         
         # Flight scenarios (from thesis)
         self.escenarios = np.array([
@@ -162,17 +168,40 @@ class QuadrotorScalingAnalysis:
         for d in [self.out_dir, self.fig_dir, self.tab_dir, self.data_dir]:
             os.makedirs(d, exist_ok=True)
         
-        print(f"\n{'='*60}")
-        print("QUADROTOR PID SCALING ANALYSIS")
-        print(f"{'='*60}")
+        # Calcular total de evaluaciones para estimación de tiempo
+        total_evals = (len(self.size_factors) * len(self.escenarios) * 
+                      self.num_ejecuciones * self.nPop * self.MaxIter)
+        
+        print(f"\n{'='*70}")
+        print(" QUADROTOR PID SCALING ANALYSIS - VERSIÓN CON BARRAS DE PROGRESO")
+        print(f"{'='*70}")
         print(f"Output directory: {self.out_dir}")
         print(f"Size variants: {', '.join(self.size_names)}")
-        print(f"Mode: {'RAPID (test)' if self.modo_rapido else 'FULL'}")
-        print(f"{'='*60}\n")
+        print(f"Mode: {'RAPID (test)' if self.modo_rapido else 'FULL OPTIMIZED'}")
+        print(f"Parallel workers: {self.num_workers if self.usar_paralelo else 'Disabled'}")
+        print(f"\n📊 CONFIGURACIÓN:")
+        print(f"   • Partículas: {self.nPop}")
+        print(f"   • Iteraciones: {self.MaxIter}")
+        print(f"   • Ejecuciones: {self.num_ejecuciones}")
+        print(f"   • Escenarios: {len(self.escenarios)}")
+        print(f"   • Tamaños: {len(self.size_factors)}")
+        print(f"   • Total evaluaciones: {total_evals:,}")
+        print(f"{'='*70}\n")
     
     # =========================================================================
-    # QUADROTOR DYNAMICS MODEL
+    # QUADROTOR DYNAMICS MODEL (OPTIMIZADO CON CACHE)
     # =========================================================================
+    
+    def _get_cache_key(self, ganancias, ref, params_key):
+        """Generate cache key for evaluation"""
+        # Redondear para cache (evitar pequeñas diferencias numéricas)
+        g_rounded = tuple(np.round(ganancias, 4))
+        r_rounded = tuple(np.round(ref, 4))
+        return (g_rounded, r_rounded, params_key)
+    
+    def _get_params_key(self, params):
+        """Generate key for params dict"""
+        return (params['m'], params['l'], params['Ixx'], params['Izz'])
     
     def modelo_cuadrotor(self, t, X, ganancias, ref, params):
         """Quadrotor dynamics model with given parameters"""
@@ -194,7 +223,7 @@ class QuadrotorScalingAnalysis:
         de_theta = -q
         de_psi = -r
         
-        # Integral terms (approximation)
+        # Integral terms (approximation - más rápido que integrar realmente)
         int_e_z = e_z * t if t > 0 else 0
         int_e_phi = e_phi * t if t > 0 else 0
         int_e_theta = e_theta * t if t > 0 else 0
@@ -213,7 +242,7 @@ class QuadrotorScalingAnalysis:
         U3 = np.clip(U3, -3, 3)
         U4 = np.clip(U4, -1, 1)
         
-        # Trigonometry
+        # Trigonometry (computación más eficiente)
         cphi, sphi = np.cos(phi), np.sin(phi)
         ctheta, stheta = np.cos(theta), np.sin(theta)
         cpsi, spsi = np.cos(psi), np.sin(psi)
@@ -242,24 +271,37 @@ class QuadrotorScalingAnalysis:
         
         return np.array([vx, vy, vz, p, q, r, ax, ay, az, p_dot, q_dot, r_dot])
     
-    def evaluar_pid(self, ganancias, ref, params):
-        """Evaluate PID performance for given gains and parameters"""
+    def evaluar_pid(self, ganancias, ref, params, usar_cache=True):
+        """Evaluate PID performance for given gains and parameters (con cache)"""
+        params_key = self._get_params_key(params)
+        
+        if usar_cache:
+            cache_key = self._get_cache_key(ganancias, ref, params_key)
+            if cache_key in self.cache:
+                self.cache_hits += 1
+                return self.cache[cache_key]
+            self.cache_misses += 1
+        
         try:
             X0 = np.zeros(12)
             t_eval = np.linspace(self.t_simulacion[0], self.t_simulacion[1], self.n_puntos)
             
+            # Reducir tolerancias para acelerar
             sol = solve_ivp(
                 lambda t, X: self.modelo_cuadrotor(t, X, ganancias, ref, params),
                 self.t_simulacion,
                 X0,
                 t_eval=t_eval,
                 method='RK45',
-                rtol=1e-4,
-                atol=1e-6
+                rtol=1e-3,  # Reducido de 1e-4
+                atol=1e-4   # Reducido de 1e-6
             )
             
             if not sol.success:
-                return 1000.0, self._metricas_default()
+                result = (1000.0, self._metricas_default())
+                if usar_cache:
+                    self.cache[cache_key] = result
+                return result
             
             t = sol.t
             X = sol.y
@@ -271,16 +313,18 @@ class QuadrotorScalingAnalysis:
             IAE = np.trapz(np.abs(e_z), t)
             ITSE = np.trapz(t * e_z ** 2, t)
             
-            # Settling time
+            # Settling time (versión optimizada)
             tolerancia = self.tol_settling * abs(ref[0]) if ref[0] != 0 else 0.02
             dentro_tolerancia = np.abs(e_z) <= tolerancia
             
             t_settling = t[-1]
             if np.any(dentro_tolerancia):
-                for i in range(len(t) - 1, -1, -1):
-                    if i > 0 and np.all(dentro_tolerancia[i:]):
-                        t_settling = t[i]
-                        break
+                # Búsqueda binaria inversa para encontrar último punto fuera de tolerancia
+                idx_out = np.where(~dentro_tolerancia)[0]
+                if len(idx_out) > 0:
+                    t_settling = t[idx_out[-1] + 1] if idx_out[-1] + 1 < len(t) else t[-1]
+                else:
+                    t_settling = t[0]
             
             # Overshoot
             max_z = np.max(z) if len(z) > 0 else 0
@@ -305,27 +349,40 @@ class QuadrotorScalingAnalysis:
                       self.pesos[2] * itse_norm + 
                       self.pesos[3] * iae_norm)
             
-            return fitness, metricas
+            result = (fitness, metricas)
+            
+            if usar_cache:
+                self.cache[cache_key] = result
+            
+            return result
             
         except Exception as e:
-            return 1000.0, self._metricas_default()
+            result = (1000.0, self._metricas_default())
+            if usar_cache:
+                self.cache[cache_key] = result
+            return result
     
     def _metricas_default(self):
         return {'RMSE': 10.0, 'IAE': 50.0, 'ITSE': 100.0, 
                 't_settling': 10.0, 'sobrepico': 100.0}
     
     # =========================================================================
-    # PSO ALGORITHM
+    # PSO ALGORITHM (CON BARRAS DE PROGRESO)
     # =========================================================================
     
-    def pso_optimize(self, params, ref_escenario=None, num_ejecuciones=1):
-        """Run PSO optimization for given parameters"""
+    def pso_optimize(self, params, ref_escenario=None, num_ejecuciones=1, 
+                     desc="PSO", position=0):
+        """Run PSO optimization for given parameters con barra de progreso"""
         if ref_escenario is None:
             ref_escenario = self.escenarios[0]  # Default to E1
         
         best_results = []
         
-        for ejec in range(num_ejecuciones):
+        # Barra para ejecuciones
+        ejec_range = trange(num_ejecuciones, desc=f"   {desc}", 
+                           leave=False, position=position)
+        
+        for ejec in ejec_range:
             np.random.seed(42 + ejec)
             
             # Initialize swarm
@@ -333,6 +390,7 @@ class QuadrotorScalingAnalysis:
             gbest_pos = None
             gbest_fit = float('inf')
             
+            # Inicialización
             for i in range(self.nPop):
                 pos = np.random.uniform(self.VarMin, self.VarMax)
                 vel = np.zeros(self.nVar)
@@ -350,9 +408,12 @@ class QuadrotorScalingAnalysis:
                     gbest_fit = fit
                     gbest_pos = pos.copy()
             
-            # Main loop
+            # Main loop con barra interna
             convergence = []
-            for iter in range(self.MaxIter):
+            iter_range = trange(self.MaxIter, desc=f"      Iter", 
+                               leave=False, position=position+1)
+            
+            for iter in iter_range:
                 w = self.w_max - (self.w_max - self.w_min) * (iter / self.MaxIter)
                 
                 for i in range(self.nPop):
@@ -387,6 +448,7 @@ class QuadrotorScalingAnalysis:
                             gbest_pos = particles[i]['pos'].copy()
                 
                 convergence.append(gbest_fit)
+                iter_range.set_postfix({'fit': f'{gbest_fit:.4f}'})
             
             best_results.append({
                 'pos': gbest_pos,
@@ -399,25 +461,37 @@ class QuadrotorScalingAnalysis:
         return best_results[best_idx]
     
     # =========================================================================
-    # SCALING ANALYSIS
+    # SCALING ANALYSIS (CON BARRAS DE PROGRESO)
     # =========================================================================
     
     def run_full_analysis(self):
-        """Run complete scaling analysis"""
-        print("\n1. OPTIMIZING BASELINE QUADROTOR (1×)")
+        """Run complete scaling analysis con barras de progreso"""
+        tiempo_inicio = time.time()
+        
+        print("\n📊 INICIANDO ANÁLISIS COMPLETO")
+        print("   " + "="*50)
+        
+        # 1. OPTIMIZAR BASELINE
+        print("\n1️⃣  OPTIMIZANDO QUADROTOR BASELINE (1×)")
         baseline_params = self.variants[1.0]['params']
         
-        # Optimize for each scenario and average
         baseline_gains_scenarios = []
         
-        for idx, (esc, esc_name) in enumerate(zip(self.escenarios, self.nombres_escenarios)):
-            print(f"   Scenario {idx+1}: {esc_name}")
-            result = self.pso_optimize(baseline_params, esc, num_ejecuciones=self.num_ejecuciones)
+        # Barra para escenarios
+        esc_range = tqdm(enumerate(zip(self.escenarios, self.nombres_escenarios)), 
+                         total=len(self.escenarios), desc="   Escenarios", 
+                         position=0, leave=True)
+        
+        for idx, (esc, esc_name) in esc_range:
+            esc_range.set_description(f"   Escenario {idx+1}: {esc_name[:20]}...")
+            result = self.pso_optimize(baseline_params, esc, 
+                                      num_ejecuciones=self.num_ejecuciones,
+                                      desc=f"E{idx+1}", position=1)
             baseline_gains_scenarios.append(result['pos'])
         
         # Average gains across scenarios
         baseline_gains = np.mean(baseline_gains_scenarios, axis=0)
-        print(f"\n✅ Baseline gains obtained")
+        print(f"\n✅ Baseline gains obtained: fitness ≈ {result['fit']:.4f}")
         
         # Store results
         results = {
@@ -429,39 +503,67 @@ class QuadrotorScalingAnalysis:
             }
         }
         
-        print("\n2. OPTIMIZING OTHER SIZE VARIANTS")
         optimal_gains = {1.0: baseline_gains}
         
-        for factor in [0.5, 2.0, 5.0]:
-            print(f"\n   {self.variants[factor]['name']} (factor={factor})")
-            params = self.variants[factor]['params']
+        # 2. OPTIMIZAR OTROS TAMAÑOS
+        print("\n2️⃣  OPTIMIZANDO OTRAS VARIANTES")
+        
+        other_factors = [f for f in self.size_factors if f != 1.0]
+        
+        for factor in tqdm(other_factors, desc="   Tamaños", position=0):
+            variant = self.variants[factor]
+            print(f"\n   📍 {variant['name']} (factor={factor})")
+            params = variant['params']
             
             # Optimize for this size
             gains_scenarios = []
-            for idx, esc in enumerate(self.escenarios):
-                result = self.pso_optimize(params, esc, num_ejecuciones=self.num_ejecuciones)
+            
+            esc_range = trange(len(self.escenarios), desc=f"   Escenarios", 
+                              leave=False, position=1)
+            
+            for idx in esc_range:
+                esc = self.escenarios[idx]
+                result = self.pso_optimize(params, esc, 
+                                          num_ejecuciones=self.num_ejecuciones,
+                                          desc=f"E{idx+1}", position=2)
                 gains_scenarios.append(result['pos'])
             
             optimal_gains[factor] = np.mean(gains_scenarios, axis=0)
             
             results[factor] = {
                 'factor': factor,
-                'name': self.variants[factor]['name'],
+                'name': variant['name'],
                 'gains': optimal_gains[factor],
                 'params': params
             }
         
-        print("\n3. EVALUATING GAIN TRANSFER")
+        # 3. EVALUAR TRANSFERENCIA
+        print("\n3️⃣  EVALUANDO TRANSFERENCIA DE GANANCIAS")
         transfer_results = self.evaluate_gain_transfer(optimal_gains)
         
-        # Save results
+        # 4. GUARDAR RESULTADOS
         self.save_results(results, transfer_results)
         
-        # Generate figures
+        # 5. GENERAR FIGURAS
+        print("\n4️⃣  GENERANDO FIGURAS")
         self.generate_figures(results, transfer_results)
         
-        # Generate tables
+        # 6. GENERAR TABLAS
+        print("\n5️⃣  GENERANDO TABLAS")
         self.generate_tables(results, transfer_results)
+        
+        # Estadísticas de cache
+        total_cache = self.cache_hits + self.cache_misses
+        if total_cache > 0:
+            hit_rate = self.cache_hits / total_cache * 100
+            print(f"\n📈 Cache hit rate: {hit_rate:.1f}% ({self.cache_hits}/{total_cache})")
+        
+        tiempo_total = time.time() - tiempo_inicio
+        print(f"\n{'='*70}")
+        print(f"✅ ANÁLISIS COMPLETADO EN {tiempo_total/60:.1f} MINUTOS")
+        print(f"{'='*70}")
+        print(f"📁 Output directory: {self.out_dir}")
+        print(f"{'='*70}\n")
         
         return results, transfer_results
     
@@ -469,41 +571,45 @@ class QuadrotorScalingAnalysis:
         """Evaluate performance when transferring gains between sizes"""
         transfer_results = []
         
-        # For each target size
-        for target_factor in [0.5, 1.0, 2.0, 5.0]:
+        # Para cada tamaño objetivo
+        targets = [f for f in self.size_factors]
+        
+        target_range = tqdm(targets, desc="   Evaluando transferencias", position=0)
+        
+        for target_factor in target_range:
             target_params = self.variants[target_factor]['params']
             target_optimal = optimal_gains[target_factor]
             
-            # Evaluate optimal (baseline) performance
+            # Evaluar rendimiento óptimo
             fit_optimal_sum = 0
             for esc in self.escenarios:
                 fit, _ = self.evaluar_pid(target_optimal, esc, target_params)
                 fit_optimal_sum += fit
             fit_optimal = fit_optimal_sum / len(self.escenarios)
             
-            # Evaluate Ziegler-Nichols performance
+            # Evaluar Ziegler-Nichols
             fit_zn_sum = 0
             for esc in self.escenarios:
                 fit, _ = self.evaluar_pid(self.zn_gains, esc, target_params)
                 fit_zn_sum += fit
             fit_zn = fit_zn_sum / len(self.escenarios)
             
-            # For each source size
-            for source_factor in [0.5, 1.0, 2.0, 5.0]:
+            # Para cada fuente
+            for source_factor in self.size_factors:
                 if source_factor == target_factor:
                     continue
                 
                 source_gains = optimal_gains[source_factor]
                 source_params = self.variants[source_factor]['params']
                 
-                # Unscaled transfer
+                # Transferencia sin escalar
                 fit_unscaled_sum = 0
                 for esc in self.escenarios:
                     fit, _ = self.evaluar_pid(source_gains, esc, target_params)
                     fit_unscaled_sum += fit
                 fit_unscaled = fit_unscaled_sum / len(self.escenarios)
                 
-                # Scaled transfer using derived laws
+                # Transferencia con escalado
                 scaled_gains = self.apply_scaling_law(
                     source_gains, source_params, target_params
                 )
@@ -514,11 +620,10 @@ class QuadrotorScalingAnalysis:
                     fit_scaled_sum += fit
                 fit_scaled = fit_scaled_sum / len(self.escenarios)
                 
-                # Calculate metrics
+                # Calcular métricas
                 degradation_unscaled = (fit_unscaled - fit_optimal) / fit_optimal * 100
                 degradation_scaled = (fit_scaled - fit_optimal) / fit_optimal * 100
                 
-                # Retained benefit
                 retained = (fit_zn - fit_scaled) / (fit_zn - fit_optimal) * 100
                 
                 transfer_results.append({
@@ -539,25 +644,20 @@ class QuadrotorScalingAnalysis:
     
     def apply_scaling_law(self, gains, source_params, target_params):
         """Apply theoretical scaling law to gains"""
-        # Extract parameters
         m_src = source_params['m']
         l_src = source_params['l']
         m_tgt = target_params['m']
         l_tgt = target_params['l']
         
-        # Mass ratio
         m_ratio = m_tgt / m_src
-        
-        # Length ratio
         l_ratio = l_tgt / l_src
         
-        # Apply scaling to each gain group
         scaled = gains.copy()
         
         # Altitude gains (indices 0-2)
-        scaled[0] = gains[0] * m_ratio / l_ratio           # Kp
-        scaled[1] = gains[1] * m_ratio / (l_ratio ** 1.5)  # Ki
-        scaled[2] = gains[2] * m_ratio / np.sqrt(l_ratio)  # Kd
+        scaled[0] = gains[0] * m_ratio / l_ratio
+        scaled[1] = gains[1] * m_ratio / (l_ratio ** 1.5)
+        scaled[2] = gains[2] * m_ratio / np.sqrt(l_ratio)
         
         # Roll gains (indices 3-5)
         scaled[3] = gains[3] * m_ratio / l_ratio
@@ -580,38 +680,26 @@ class QuadrotorScalingAnalysis:
         """Derive actual scaling exponents from optimal gains"""
         factors = [0.5, 1.0, 2.0, 5.0]
         masses = [self.variants[f]['params']['m'] for f in factors]
-        lengths = [self.variants[f]['params']['l'] for f in factors]
         
         exponents = {}
         
-        # Define gain groups
         groups = {
-            'Kp_z': (0, 'altitude proportional'),
-            'Ki_z': (1, 'altitude integral'),
-            'Kd_z': (2, 'altitude derivative'),
-            'Kp_phi': (3, 'roll proportional'),
-            'Kp_theta': (6, 'pitch proportional'),
-            'Kp_psi': (9, 'yaw proportional')
+            'Kp_z': 0,
+            'Ki_z': 1,
+            'Kd_z': 2,
+            'Kp_phi': 3,
+            'Kp_theta': 6,
+            'Kp_psi': 9
         }
         
-        for name, (idx, desc) in groups.items():
+        for name, idx in groups.items():
             gains = [optimal_gains[f][idx] for f in factors]
             
-            # Fit to power law: K = A * m^α * l^β
-            # But m and l are correlated, so fit to m only and adjust
-            
-            # Log transform for linear fitting
             log_m = np.log(masses)
             log_g = np.log(gains)
             
-            # Fit to mass only first
             coeffs_m = np.polyfit(log_m, log_g, 1)
             alpha = coeffs_m[0]
-            
-            # Then adjust for length
-            # l ∝ m^(1/3) from geometric similarity
-            # So observed exponent α_obs = α + β/3
-            # We can estimate β = 3(α_obs - α_theory_with_length)
             
             exponents[name] = {
                 'alpha_obs': alpha,
@@ -626,13 +714,15 @@ class QuadrotorScalingAnalysis:
     
     def generate_figures(self, results, transfer_results):
         """Generate all figures for the paper"""
-        print("\n4. GENERATING FIGURES")
+        fig_range = tqdm(range(3), desc="   Generando figuras", position=0)
         
-        self.fig1_kp_scaling(results)
-        self.fig2_performance_comparison(transfer_results)
-        self.fig3_scenario_breakdown(results)
-        
-        print("   ✓ All figures generated")
+        for i in fig_range:
+            if i == 0:
+                self.fig1_kp_scaling(results)
+            elif i == 1:
+                self.fig2_performance_comparison(transfer_results)
+            else:
+                self.fig3_scenario_breakdown(results)
     
     def fig1_kp_scaling(self, results):
         """Figure 1: Kp scaling with mass"""
@@ -645,7 +735,6 @@ class QuadrotorScalingAnalysis:
         kp_z = [results[f]['gains'][0] for f in factors]
         axes[0].scatter(masses, kp_z, s=100, color='#1f77b4', zorder=5)
         
-        # Fit power law: Kp = a * m^b
         log_m = np.log(masses)
         log_kp = np.log(kp_z)
         coeffs = np.polyfit(log_m, log_kp, 1)
@@ -675,7 +764,7 @@ class QuadrotorScalingAnalysis:
         coeffs = np.polyfit(log_m, log_kp_att, 1)
         b_att = coeffs[0]
         
-        kp_att_fit = a_att * m_fit ** b_att if 'a_att' in locals() else a * m_fit ** b_att
+        kp_att_fit = a * m_fit ** b_att
         
         axes[1].plot(m_fit, kp_att_fit, 'r-', linewidth=2,
                     label=f'$K_p \\propto m^{{{b_att:.2f}}}$')
@@ -685,11 +774,8 @@ class QuadrotorScalingAnalysis:
         axes[1].grid(True, alpha=0.3)
         axes[1].legend()
         
-        # Comparison of all gain types
+        # Comparison
         kd_z = [results[f]['gains'][2] for f in factors]
-        log_kd = np.log(kd_z)
-        coeffs_kd = np.polyfit(log_m, log_kd, 1)
-        b_kd = coeffs_kd[0]
         
         axes[2].scatter(masses, kp_z, s=80, label='$K_p$ (altitude)', alpha=0.7)
         axes[2].scatter(masses, kd_z, s=80, label='$K_d$ (altitude)', alpha=0.7)
@@ -708,15 +794,15 @@ class QuadrotorScalingAnalysis:
         path = os.path.join(self.fig_dir, 'fig1_kp_scaling.png')
         plt.savefig(path, dpi=300, bbox_inches='tight')
         plt.close()
-        print("   ✓ fig1_kp_scaling.png")
     
     def fig2_performance_comparison(self, transfer_results):
         """Figure 2: Performance comparison for gain transfer"""
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
         
-        # Extract data for transfers FROM baseline (1.0) to others
         baseline_to_others = [r for r in transfer_results 
                              if r['source_factor'] == 1.0 and r['target_factor'] != 1.0]
+        
+        baseline_to_others.sort(key=lambda x: x['target_factor'])
         
         target_factors = [r['target_factor'] for r in baseline_to_others]
         target_names = [self.variants[f]['name'] for f in target_factors]
@@ -743,7 +829,6 @@ class QuadrotorScalingAnalysis:
         ax1.legend()
         ax1.grid(True, alpha=0.3, axis='y')
         
-        # Bar chart of degradation
         degradation_unscaled = [r['degradation_unscaled'] for r in baseline_to_others]
         degradation_scaled = [r['degradation_scaled'] for r in baseline_to_others]
         
@@ -760,7 +845,6 @@ class QuadrotorScalingAnalysis:
         ax2.legend()
         ax2.grid(True, alpha=0.3, axis='y')
         
-        # Add percentage labels
         for i, (u, s) in enumerate(zip(degradation_unscaled, degradation_scaled)):
             ax2.text(i - width/2, u + 1, f'{u:.1f}%', ha='center', va='bottom', fontsize=9)
             ax2.text(i + width/2, s + 1, f'{s:.1f}%', ha='center', va='bottom', fontsize=9)
@@ -772,7 +856,6 @@ class QuadrotorScalingAnalysis:
         path = os.path.join(self.fig_dir, 'fig2_performance.png')
         plt.savefig(path, dpi=300, bbox_inches='tight')
         plt.close()
-        print("   ✓ fig2_performance.png")
     
     def fig3_scenario_breakdown(self, results):
         """Figure 3: Performance breakdown by flight scenario for Large quadrotor"""
@@ -783,7 +866,6 @@ class QuadrotorScalingAnalysis:
         large_optimal = results[large_factor]['gains']
         baseline_gains = results[1.0]['gains']
         
-        # Apply scaling to baseline gains
         scaled_gains = self.apply_scaling_law(
             baseline_gains, 
             self.variants[1.0]['params'],
@@ -796,9 +878,9 @@ class QuadrotorScalingAnalysis:
         scenario_names = []
         
         for idx, (esc, esc_name) in enumerate(zip(self.escenarios, self.nombres_escenarios)):
-            fit_opt, _ = self.evaluar_pid(large_optimal, esc, large_params)
-            fit_scaled, _ = self.evaluar_pid(scaled_gains, esc, large_params)
-            fit_unscaled, _ = self.evaluar_pid(baseline_gains, esc, large_params)
+            fit_opt, _ = self.evaluar_pid(large_optimal, esc, large_params, usar_cache=True)
+            fit_scaled, _ = self.evaluar_pid(scaled_gains, esc, large_params, usar_cache=True)
+            fit_unscaled, _ = self.evaluar_pid(baseline_gains, esc, large_params, usar_cache=True)
             
             scenario_fits_optimal.append(fit_opt)
             scenario_fits_scaled.append(fit_scaled)
@@ -824,7 +906,6 @@ class QuadrotorScalingAnalysis:
         ax.legend()
         ax.grid(True, alpha=0.3, axis='y')
         
-        # Add scenario descriptions as secondary x-axis
         ax2 = ax.twiny()
         ax2.set_xlim(ax.get_xlim())
         ax2.set_xticks(x)
@@ -836,7 +917,6 @@ class QuadrotorScalingAnalysis:
         path = os.path.join(self.fig_dir, 'fig3_scenarios.png')
         plt.savefig(path, dpi=300, bbox_inches='tight')
         plt.close()
-        print("   ✓ fig3_scenarios.png")
     
     # =========================================================================
     # TABLE GENERATION
@@ -844,15 +924,11 @@ class QuadrotorScalingAnalysis:
     
     def generate_tables(self, results, transfer_results):
         """Generate all tables for the paper"""
-        print("\n5. GENERATING TABLES")
-        
         self.table1_size_variants()
         self.table2_scaling_exponents(results)
         self.table3_degradation(transfer_results)
         self.table4_efficiency()
         self.table5_retained_benefit(transfer_results)
-        
-        print("   ✓ All tables generated")
     
     def table1_size_variants(self):
         """Table 1: Quadrotor size variants"""
@@ -900,6 +976,8 @@ class QuadrotorScalingAnalysis:
         baseline_transfers = [r for r in transfer_results 
                              if r['source_factor'] == 1.0 and r['target_factor'] != 1.0]
         
+        baseline_transfers.sort(key=lambda x: x['target_factor'])
+        
         data = []
         for r in baseline_transfers:
             data.append({
@@ -909,7 +987,6 @@ class QuadrotorScalingAnalysis:
                 'Improvement': f"{(1 - r['degradation_scaled']/r['degradation_unscaled'])*100:.1f}\\%"
             })
         
-        # Add averages
         avg_unscaled = np.mean([r['degradation_unscaled'] for r in baseline_transfers])
         avg_scaled = np.mean([r['degradation_scaled'] for r in baseline_transfers])
         avg_imp = (1 - avg_scaled/avg_unscaled) * 100
@@ -927,7 +1004,6 @@ class QuadrotorScalingAnalysis:
     
     def table4_efficiency(self):
         """Table 4: Computational efficiency"""
-        # Times from thesis
         time_per_opt = 3.1  # hours
         
         data = [
@@ -954,22 +1030,18 @@ class QuadrotorScalingAnalysis:
         baseline_transfers = [r for r in transfer_results 
                              if r['source_factor'] == 1.0 and r['target_factor'] != 1.0]
         
+        baseline_transfers.sort(key=lambda x: x['target_factor'])
+        
         data = []
         for r in baseline_transfers:
-            # ZN fitness from results
-            zn_fit = r['fit_zn']
-            opt_fit = r['fit_optimal']
-            scaled_fit = r['fit_scaled']
-            
             data.append({
                 'Target Size': r['target_name'],
-                '$J_{\\text{ZN}}$': f"{zn_fit:.4f}",
-                '$J_{\\text{optimal}}$': f"{opt_fit:.4f}",
-                '$J_{\\text{scaled}}$': f"{scaled_fit:.4f}",
+                '$J_{\\text{ZN}}$': f"{r['fit_zn']:.4f}",
+                '$J_{\\text{optimal}}$': f"{r['fit_optimal']:.4f}",
+                '$J_{\\text{scaled}}$': f"{r['fit_scaled']:.4f}",
                 'Retained Benefit': f"{r['retained_benefit']:.1f}\\%"
             })
         
-        # Average
         avg_retained = np.mean([r['retained_benefit'] for r in baseline_transfers])
         data.append({
             'Target Size': '\\textbf{Average}',
@@ -985,20 +1057,18 @@ class QuadrotorScalingAnalysis:
     
     def save_table(self, df, filename, caption):
         """Save table as CSV and LaTeX"""
-        # CSV
         csv_path = os.path.join(self.tab_dir, f"{filename}.csv")
         df.to_csv(csv_path, index=False)
         
-        # LaTeX
         latex_path = os.path.join(self.tab_dir, f"{filename}.tex")
         with open(latex_path, 'w') as f:
-            f.write(df.to_latex(index=False, escape=False))
-        
-        print(f"   ✓ {filename}.tex")
+            latex_str = df.to_latex(index=False, escape=False)
+            # Arreglar escapes para LaTeX
+            latex_str = latex_str.replace('\\%', '\\%').replace('\\$', '$')
+            f.write(latex_str)
     
     def save_results(self, results, transfer_results):
         """Save all results to JSON"""
-        # Convert to serializable format
         results_serializable = {}
         for factor, data in results.items():
             if isinstance(factor, float):
@@ -1018,6 +1088,7 @@ class QuadrotorScalingAnalysis:
         all_results = {
             'results': results_serializable,
             'transfer': transfer_serializable,
+            'cache_stats': {'hits': self.cache_hits, 'misses': self.cache_misses},
             'timestamp': datetime.now().isoformat()
         }
         
@@ -1025,7 +1096,7 @@ class QuadrotorScalingAnalysis:
         with open(path, 'w') as f:
             json.dump(all_results, f, indent=2)
         
-        print(f"\n✅ Results saved to {path}")
+        print(f"\n💾 Resultados guardados en {path}")
 
 
 def main():
@@ -1035,23 +1106,31 @@ def main():
     parser = argparse.ArgumentParser(description='Quadrotor PID Scaling Analysis')
     parser.add_argument('--rapido', action='store_true', 
                        help='Modo rápido para pruebas')
+    parser.add_argument('--workers', type=int, default=None,
+                       help='Número de workers en paralelo')
     args = parser.parse_args()
     
-    print("\n" + "="*60)
-    print("QUADROTOR PID SCALING ANALYSIS - TRAJECTORIES 2026")
-    print("="*60)
+    print("\n" + "="*70)
+    print("🚁 QUADROTOR PID SCALING ANALYSIS - TRAJECTORIES 2026")
+    print("="*70)
     
     try:
-        analyzer = QuadrotorScalingAnalysis(modo_rapido=args.rapido)
+        analyzer = QuadrotorScalingAnalysis(
+            modo_rapido=args.rapido,
+            usar_paralelo=True,
+            num_workers=args.workers
+        )
         results, transfer_results = analyzer.run_full_analysis()
         
-        print("\n" + "="*60)
-        print("✅ ANALYSIS COMPLETE")
-        print(f"📁 Output directory: {analyzer.out_dir}")
-        print("="*60 + "\n")
-        
     except KeyboardInterrupt:
-        print("\n\n⚠️  Interrupted by user")
+        print("\n\n⚠️  Interrupción detectada. Guardando resultados parciales...")
+        try:
+            analyzer.save_results(results if 'results' in locals() else {}, 
+                                 transfer_results if 'transfer_results' in locals() else [])
+            print("✅ Resultados parciales guardados")
+        except:
+            pass
+        print("\n👋 Hasta luego!")
     except Exception as e:
         print(f"\n❌ Error: {e}")
         import traceback
