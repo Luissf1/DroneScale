@@ -1,0 +1,218 @@
+{
+  "results": {
+    "0.5": {
+      "name": "Micro (0.5\u00d7)",
+      "gains": [
+        15.0,
+        2.0,
+        1.5031041280264978,
+        1.6112964516035153,
+        0.026923798305849272,
+        1.4634391627387833,
+        2.1527551784161805,
+        0.03677432996132364,
+        1.6732682130195926,
+        8.403202717289325,
+        0.06537181353497294,
+        1.0899999132671754
+      ]
+    },
+    "2.0": {
+      "name": "Medium (2\u00d7)",
+      "gains": [
+        15.0,
+        2.0,
+        1.2991206952990637,
+        2.2035287273831647,
+        0.009055638656467541,
+        1.8560722756731038,
+        3.4979877014792558,
+        0.026644100569168515,
+        1.595309492153596,
+        5.927267844954963,
+        0.042267907298826846,
+        0.6343787879416806
+      ]
+    },
+    "5.0": {
+      "name": "Large (5\u00d7)",
+      "gains": [
+        6.869021545015713,
+        1.9019214697557332,
+        3.6867703148758855,
+        6.026718993550662,
+        0.016445845403801215,
+        0.39638958863878504,
+        0.6750277604651747,
+        0.08675143843171859,
+        1.2421185223120967,
+        7.10991852018085,
+        0.0030378649352844423,
+        1.9428287191077893
+      ]
+    }
+  },
+  "transfer": [
+    {
+      "source_factor": 1.0,
+      "target_factor": 0.5,
+      "source_name": "Baseline (1\u00d7)",
+      "target_name": "Micro (0.5\u00d7)",
+      "fit_optimal": 0.3502525117217928,
+      "fit_zn": 0.34331733317206864,
+      "fit_unscaled": 0.3712573854693434,
+      "fit_scaled": 0.36965957235924696,
+      "degradation_unscaled": 5.997065843808961,
+      "degradation_scaled": 5.54087693534352,
+      "retained_benefit": 379.8350539688142
+    },
+    {
+      "source_factor": 2.0,
+      "target_factor": 0.5,
+      "source_name": "Medium (2\u00d7)",
+      "target_name": "Micro (0.5\u00d7)",
+      "fit_optimal": 0.3502525117217928,
+      "fit_zn": 0.34331733317206864,
+      "fit_unscaled": 0.35750339298746875,
+      "fit_scaled": 0.3861522654898601,
+      "degradation_unscaled": 2.0701868003834263,
+      "degradation_scaled": 10.249677751513929,
+      "retained_benefit": 617.6471450687493
+    },
+    {
+      "source_factor": 5.0,
+      "target_factor": 0.5,
+      "source_name": "Large (5\u00d7)",
+      "target_name": "Micro (0.5\u00d7)",
+      "fit_optimal": 0.3502525117217928,
+      "fit_zn": 0.34331733317206864,
+      "fit_unscaled": 0.3567118126635058,
+      "fit_scaled": 0.6317498435236336,
+      "degradation_unscaled": 1.8441840459501675,
+      "degradation_scaled": 80.36982530633084,
+      "retained_benefit": 4158.977426227013
+    },
+    {
+      "source_factor": 0.5,
+      "target_factor": 1.0,
+      "source_name": "Micro (0.5\u00d7)",
+      "target_name": "Baseline (1\u00d7)",
+      "fit_optimal": 0.3778839845409573,
+      "fit_zn": 0.40689051992897873,
+      "fit_unscaled": 0.3723671164052365,
+      "fit_scaled": 0.3502059363308398,
+      "degradation_unscaled": -1.45993700749782,
+      "degradation_scaled": -7.324483000712506,
+      "retained_benefit": 195.42004186252257
+    },
+    {
+      "source_factor": 2.0,
+      "target_factor": 1.0,
+      "source_name": "Medium (2\u00d7)",
+      "target_name": "Baseline (1\u00d7)",
+      "fit_optimal": 0.3778839845409573,
+      "fit_zn": 0.40689051992897873,
+      "fit_unscaled": 0.3743139250583827,
+      "fit_scaled": 0.4281357861275822,
+      "degradation_unscaled": -0.9447501425368456,
+      "degradation_scaled": 13.298208879550522,
+      "retained_benefit": -73.24303269730346
+    },
+    {
+      "source_factor": 5.0,
+      "target_factor": 1.0,
+      "source_name": "Large (5\u00d7)",
+      "target_name": "Baseline (1\u00d7)",
+      "fit_optimal": 0.3778839845409573,
+      "fit_zn": 0.40689051992897873,
+      "fit_unscaled": 0.44073182595256055,
+      "fit_scaled": 0.6741761202740285,
+      "degradation_unscaled": 16.631517603994,
+      "degradation_scaled": 78.40822788322149,
+      "retained_benefit": -921.4668238366314
+    },
+    {
+      "source_factor": 0.5,
+      "target_factor": 2.0,
+      "source_name": "Micro (0.5\u00d7)",
+      "target_name": "Medium (2\u00d7)",
+      "fit_optimal": 0.4952902778686856,
+      "fit_zn": 0.6086146953541578,
+      "fit_unscaled": 0.4951975732230756,
+      "fit_scaled": 0.360081689984846,
+      "degradation_unscaled": -0.018717235074536903,
+      "degradation_scaled": -27.298857644786423,
+      "retained_benefit": 219.31108130440902
+    },
+    {
+      "source_factor": 1.0,
+      "target_factor": 2.0,
+      "source_name": "Baseline (1\u00d7)",
+      "target_name": "Medium (2\u00d7)",
+      "fit_optimal": 0.4952902778686856,
+      "fit_zn": 0.6086146953541578,
+      "fit_unscaled": 0.49527647551698256,
+      "fit_scaled": 0.40374621139959166,
+      "degradation_unscaled": -0.002786719691421468,
+      "degradation_scaled": -18.482912053719875,
+      "retained_benefit": 180.78053123973007
+    },
+    {
+      "source_factor": 5.0,
+      "target_factor": 2.0,
+      "source_name": "Large (5\u00d7)",
+      "target_name": "Medium (2\u00d7)",
+      "fit_optimal": 0.4952902778686856,
+      "fit_zn": 0.6086146953541578,
+      "fit_unscaled": 0.6368197210102612,
+      "fit_scaled": 0.7,
+      "degradation_unscaled": 28.575049716420782,
+      "degradation_scaled": 41.33126194445275,
+      "retained_benefit": -80.64043625687064
+    },
+    {
+      "source_factor": 0.5,
+      "target_factor": 5.0,
+      "source_name": "Micro (0.5\u00d7)",
+      "target_name": "Large (5\u00d7)",
+      "fit_optimal": 0.7,
+      "fit_zn": 0.7,
+      "fit_unscaled": 0.7,
+      "fit_scaled": 0.3945378674997103,
+      "degradation_unscaled": 0.0,
+      "degradation_scaled": -43.63744750004138,
+      "retained_benefit": Infinity
+    },
+    {
+      "source_factor": 1.0,
+      "target_factor": 5.0,
+      "source_name": "Baseline (1\u00d7)",
+      "target_name": "Large (5\u00d7)",
+      "fit_optimal": 0.7,
+      "fit_zn": 0.7,
+      "fit_unscaled": 0.7,
+      "fit_scaled": 0.477223730343559,
+      "degradation_unscaled": 0.0,
+      "degradation_scaled": -31.825181379491564,
+      "retained_benefit": Infinity
+    },
+    {
+      "source_factor": 2.0,
+      "target_factor": 5.0,
+      "source_name": "Medium (2\u00d7)",
+      "target_name": "Large (5\u00d7)",
+      "fit_optimal": 0.7,
+      "fit_zn": 0.7,
+      "fit_unscaled": 0.7,
+      "fit_scaled": 0.6198247180128579,
+      "degradation_unscaled": 0.0,
+      "degradation_scaled": -11.453611712448868,
+      "retained_benefit": Infinity
+    }
+  ],
+  "cache_stats": {
+    "hits": 26479,
+    "misses": 339681
+  },
+  "timestamp": "2026-03-04T18:51:05.348478"
+}
