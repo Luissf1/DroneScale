@@ -1,0 +1,179 @@
+{
+  "results": [
+    {
+      "target_factor": 0.5,
+      "scenario": "Nominal",
+      "static_fitness": 0.31360842032797337,
+      "fuzzy_fitness": 0.32203572764919025,
+      "improvement": -2.6872069673395753
+    },
+    {
+      "target_factor": 0.5,
+      "scenario": "Payload +15%",
+      "static_fitness": 0.31689043517488635,
+      "fuzzy_fitness": 0.31595145670882474,
+      "improvement": 0.29631013177895604
+    },
+    {
+      "target_factor": 0.5,
+      "scenario": "Payload +30%",
+      "static_fitness": 0.3203731268508475,
+      "fuzzy_fitness": 0.3166859960481227,
+      "improvement": 1.1508864176493148
+    },
+    {
+      "target_factor": 0.5,
+      "scenario": "Moderate Wind",
+      "static_fitness": 0.3071521939292725,
+      "fuzzy_fitness": 0.31412142812618654,
+      "improvement": -2.2689840198630735
+    },
+    {
+      "target_factor": 0.5,
+      "scenario": "Strong Wind",
+      "static_fitness": 0.31556130380057934,
+      "fuzzy_fitness": 0.31260941645706825,
+      "improvement": 0.9354402165154432
+    },
+    {
+      "target_factor": 0.5,
+      "scenario": "Battery 50%",
+      "static_fitness": 0.31358803355127535,
+      "fuzzy_fitness": 0.30145393527010544,
+      "improvement": 3.8694391950341545
+    },
+    {
+      "target_factor": 0.5,
+      "scenario": "Battery 20%",
+      "static_fitness": 0.314033220506788,
+      "fuzzy_fitness": 0.2839455016223224,
+      "improvement": 9.58106242260291
+    },
+    {
+      "target_factor": 0.5,
+      "scenario": "Combined",
+      "static_fitness": 0.3176601612825764,
+      "fuzzy_fitness": 0.3069990643077082,
+      "improvement": 3.356132834480489
+    },
+    {
+      "target_factor": 2.0,
+      "scenario": "Nominal",
+      "static_fitness": 0.35083036232476306,
+      "fuzzy_fitness": 0.35799755205362643,
+      "improvement": -2.042921736126339
+    },
+    {
+      "target_factor": 2.0,
+      "scenario": "Payload +15%",
+      "static_fitness": 0.3556371452221059,
+      "fuzzy_fitness": 0.34923639887943825,
+      "improvement": 1.799796907792119
+    },
+    {
+      "target_factor": 2.0,
+      "scenario": "Payload +30%",
+      "static_fitness": 0.36435270980899626,
+      "fuzzy_fitness": 0.34557467633988437,
+      "improvement": 5.153806452806636
+    },
+    {
+      "target_factor": 2.0,
+      "scenario": "Moderate Wind",
+      "static_fitness": 0.34710787958379785,
+      "fuzzy_fitness": 0.3395413930685957,
+      "improvement": 2.1798659610593663
+    },
+    {
+      "target_factor": 2.0,
+      "scenario": "Strong Wind",
+      "static_fitness": 0.3479731501729442,
+      "fuzzy_fitness": 0.33642157838611514,
+      "improvement": 3.319673308440005
+    },
+    {
+      "target_factor": 2.0,
+      "scenario": "Battery 50%",
+      "static_fitness": 0.35146829052920947,
+      "fuzzy_fitness": 0.3501686521212553,
+      "improvement": 0.36977401460521037
+    },
+    {
+      "target_factor": 2.0,
+      "scenario": "Battery 20%",
+      "static_fitness": 0.3516226449219012,
+      "fuzzy_fitness": 0.3213821978974893,
+      "improvement": 8.600255831398066
+    },
+    {
+      "target_factor": 2.0,
+      "scenario": "Combined",
+      "static_fitness": 0.35607928040457254,
+      "fuzzy_fitness": 0.3428501335549535,
+      "improvement": 3.715225113516374
+    },
+    {
+      "target_factor": 5.0,
+      "scenario": "Nominal",
+      "static_fitness": 0.3882436808675998,
+      "fuzzy_fitness": 0.4439546866678281,
+      "improvement": -14.3494945431519
+    },
+    {
+      "target_factor": 5.0,
+      "scenario": "Payload +15%",
+      "static_fitness": 0.40492199798502226,
+      "fuzzy_fitness": 0.39856649519730325,
+      "improvement": 1.5695622414552295
+    },
+    {
+      "target_factor": 5.0,
+      "scenario": "Payload +30%",
+      "static_fitness": 0.49424190238586185,
+      "fuzzy_fitness": 0.37116569934356425,
+      "improvement": 24.902017098948892
+    },
+    {
+      "target_factor": 5.0,
+      "scenario": "Moderate Wind",
+      "static_fitness": 0.4004316773591024,
+      "fuzzy_fitness": 0.3763621112062063,
+      "improvement": 6.010904609654752
+    },
+    {
+      "target_factor": 5.0,
+      "scenario": "Strong Wind",
+      "static_fitness": 0.3889042728418511,
+      "fuzzy_fitness": 0.377535066459302,
+      "improvement": 2.9233945668610293
+    },
+    {
+      "target_factor": 5.0,
+      "scenario": "Battery 50%",
+      "static_fitness": 0.38619859274419216,
+      "fuzzy_fitness": 0.38365290868770896,
+      "improvement": 0.6591645087037886
+    },
+    {
+      "target_factor": 5.0,
+      "scenario": "Battery 20%",
+      "static_fitness": 0.38647599259529597,
+      "fuzzy_fitness": 0.3602737710382079,
+      "improvement": 6.779779872258744
+    },
+    {
+      "target_factor": 5.0,
+      "scenario": "Combined",
+      "static_fitness": 0.4309757914252476,
+      "fuzzy_fitness": 0.368160187024305,
+      "improvement": 14.575204837656862
+    }
+  ],
+  "summary": {
+    "mean": 3.3499620531973933,
+    "std": 6.870838419129657,
+    "min": -14.3494945431519,
+    "max": 24.902017098948892
+  },
+  "timestamp": "2026-10-07T21:36:32.493551"
+}

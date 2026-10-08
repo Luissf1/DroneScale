@@ -1,0 +1,39 @@
+# Default configuration for fuzzy-adaptive quadrotor PID experiments
+
+baseline:
+  mass: 1.0              # kg
+  arm_length: 0.25       # m
+  Ixx: 0.1               # kg·m²
+  Iyy: 0.1
+  Izz: 0.2
+  gravity: 9.81
+  thrust_coeff: 3.13e-5
+  drag_coeff: 7.5e-7
+  friction: 0.1
+
+size_factors: [0.5, 1.0, 2.0, 5.0]
+
+pso:
+  swarm_size: 50
+  max_iterations: 100
+  inertia_max: 0.7
+  inertia_min: 0.4
+  cognitive_coeff: 1.7
+  social_coeff: 1.7
+  velocity_max: 0.2
+  num_runs: 30
+
+cost_weights: [0.3, 0.3, 0.2, 0.2]   # ts, Mp, ITSE, IAE
+
+simulation:
+  t_start: 0.0
+  t_end: 10.0
+  n_points: 500
+  tol_settling: 0.02
+
+fuzzy:
+  payload_range: [0.0, 50.0]     # percent
+  turbulence_range: [0.0, 1.0]
+  battery_range: [0.0, 1.0]
+  error_range: [0.0, 1.0]
+  gain_correction_range: [0.5, 2.0]
