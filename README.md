@@ -12,16 +12,16 @@ This repository implements a hybrid methodology for quadrotor PID control that c
 
 ## Key Features
 
-- ✅ Validated scaling laws: Kp ∝ m^0.98, Ki ∝ m^0.96, Kd ∝ m^0.99
-- ✅ Fuzzy adaptive system: 12.4% average robustness improvement
-- ✅ Computational efficiency: 75% reduction in optimization effort
-- ✅ Modular architecture: clean, documented, testable code
-- ✅ Reproducible experiments: complete experiment pipeline
+-  Validated scaling laws: Kp ∝ m^0.98, Ki ∝ m^0.96, Kd ∝ m^0.99
+-  Fuzzy adaptive system: 12.4% average robustness improvement
+-  Computational efficiency: 75% reduction in optimization effort
+-  Modular architecture: clean, documented, testable code
+-  Reproducible experiments: complete experiment pipeline
 
 ## Installation
 
 ```bash
-git clone https://github.com/yourusername/fuzzy-adaptive-quadrotor-pid.git
+git clone https://github.com/Luissf1/DroneScale.git
 cd fuzzy-adaptive-quadrotor-pid
 python -m venv venv
 source venv/bin/activate      # Linux/Mac
