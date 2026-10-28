@@ -4,8 +4,7 @@ Visualization
 
 Plotting helpers for the scaling analysis and fuzzy adaptive experiments.
 
-Author: Luis Adrián Silva Reyes
-Institution: Tijuana Institute of Technology
+Author: Luis Adrian Silva Reyes
 """
 
 import os
@@ -26,8 +25,20 @@ def plot_kp_scaling(
     kp_attitude_avg: List[float],
     kd_z: List[float],
     output_path: str = "figures/fig1_kp_scaling.png",
+    subtitle: str = "",
 ) -> str:
-    """Generate Figure 1: scaling of PID gains with mass."""
+    """Generate Figure 1: scaling of PID gains with mass.
+
+    Args:
+        masses: Platform masses in kg.
+        kp_z: Altitude proportional gains.
+        kp_attitude_avg: Average attitude proportional gains.
+        kd_z: Altitude derivative gains.
+        output_path: Where to save the figure.
+        subtitle: Optional subtitle (e.g. "Full 30-run PSO budget")
+            shown under the figure title so reviewers can verify which
+            configuration produced the plot.
+    """
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
@@ -70,8 +81,11 @@ def plot_kp_scaling(
     axes[2].grid(True, alpha=0.3)
     axes[2].legend()
 
-    plt.suptitle("Figure 1: Scaling of PID Gains with Quadrotor Mass",
-                 fontsize=14, fontweight="bold", y=1.02)
+    title = "Figure 1: Scaling of PID Gains with Quadrotor Mass"
+    if subtitle:
+        title = f"{title}\n{subtitle}"
+
+    plt.suptitle(title, fontsize=14, fontweight="bold", y=1.02)
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
     plt.close()
@@ -95,12 +109,21 @@ def plot_performance_comparison(
     x = np.arange(len(target_names))
     width = 0.25
 
-    ax1.bar(x - width, fit_unscaled, width, label="Unscaled Transfer",
-            color="#d62728", alpha=0.8, edgecolor="black")
-    ax1.bar(x, fit_scaled, width, label="Scaled Transfer",
-            color="#2ca02c", alpha=0.8, edgecolor="black")
-    ax1.bar(x + width, fit_optimal, width, label="Re-optimized",
-            color="#1f77b4", alpha=0.8, edgecolor="black")
+    ax1.bar(
+        x - width, fit_unscaled, width,
+        label="Unscaled Transfer", color="#d62728", alpha=0.8,
+        edgecolor="black",
+    )
+    ax1.bar(
+        x, fit_scaled, width,
+        label="Scaled Transfer", color="#2ca02c", alpha=0.8,
+        edgecolor="black",
+    )
+    ax1.bar(
+        x + width, fit_optimal, width,
+        label="Re-optimized", color="#1f77b4", alpha=0.8,
+        edgecolor="black",
+    )
 
     ax1.set_xlabel("Target Quadrotor Size")
     ax1.set_ylabel("Fitness (lower is better)")
@@ -124,8 +147,10 @@ def plot_performance_comparison(
     for i, imp in enumerate(improvements):
         ax2.text(i, imp + 1, f"{imp:.1f}%", ha="center", va="bottom", fontsize=10)
 
-    plt.suptitle("Figure 2: Performance of Gain Transfer from Baseline Quadrotor",
-                 fontsize=14, fontweight="bold", y=1.05)
+    plt.suptitle(
+        "Figure 2: Performance of Gain Transfer from Baseline Quadrotor",
+        fontsize=14, fontweight="bold", y=1.05,
+    )
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
     plt.close()
@@ -150,14 +175,22 @@ def plot_scenario_breakdown(
     x = np.arange(len(scenario_names))
     width = 0.2
 
-    ax.bar(x - 1.5 * width, fit_unscaled, width, label="Unscaled",
-           color="#d62728", alpha=0.8, edgecolor="black")
-    ax.bar(x - 0.5 * width, fit_scaled, width, label="Scaled",
-           color="#2ca02c", alpha=0.8, edgecolor="black")
-    ax.bar(x + 0.5 * width, fit_fuzzy, width, label="Fuzzy Adaptive",
-           color="#9467bd", alpha=0.8, edgecolor="black")
-    ax.bar(x + 1.5 * width, fit_optimal, width, label="Re-optimized",
-           color="#1f77b4", alpha=0.8, edgecolor="black")
+    ax.bar(
+        x - 1.5 * width, fit_unscaled, width,
+        label="Unscaled", color="#d62728", alpha=0.8, edgecolor="black",
+    )
+    ax.bar(
+        x - 0.5 * width, fit_scaled, width,
+        label="Scaled", color="#2ca02c", alpha=0.8, edgecolor="black",
+    )
+    ax.bar(
+        x + 0.5 * width, fit_fuzzy, width,
+        label="Fuzzy Adaptive", color="#9467bd", alpha=0.8, edgecolor="black",
+    )
+    ax.bar(
+        x + 1.5 * width, fit_optimal, width,
+        label="Re-optimized", color="#1f77b4", alpha=0.8, edgecolor="black",
+    )
 
     ax.set_xlabel("Flight Scenario")
     ax.set_ylabel("Fitness (lower is better)")
@@ -192,8 +225,7 @@ def plot_fuzzy_improvements(
     ax.axhline(0, color="black", linewidth=0.8)
     ax.set_xlabel("Scenario")
     ax.set_ylabel("Improvement over Static Scaling (%)")
-    ax.set_title("Figure 4: Fuzzy Adaptive Scaling Improvement",
-                 fontweight="bold")
+    ax.set_title("Figure 4: Fuzzy Adaptive Scaling Improvement", fontweight="bold")
     ax.set_xticks(x)
     ax.set_xticklabels(scenario_names, rotation=20, ha="right")
     ax.grid(True, alpha=0.3, axis="y")

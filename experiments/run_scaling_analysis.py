@@ -18,7 +18,7 @@ from datetime import datetime
 
 import numpy as np
 
-# Allow running from repo root
+# Allow running from the repository root.
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.dynamics.quadrotor_model import QuadrotorDynamics, QuadrotorParameters
@@ -26,7 +26,7 @@ from src.optimization.pso_optimizer import PSOOptimizer, PSOConfig, PSOBounds
 from src.scaling.scaling_laws import ScalingLaw, generate_variants
 from src.simulation.scenarios import get_default_scenarios
 from src.simulation.simulator import Simulator
-from src.analysis.metrics import compute_transfer_metrics, fit_power_law
+from src.analysis.metrics import compute_transfer_metrics
 from src.analysis.visualization import plot_kp_scaling, plot_performance_comparison
 
 
@@ -36,9 +36,11 @@ def build_fitness_function(
     reference: np.ndarray,
 ):
     """Return a fitness function for PSO."""
+
     def fitness(gains: np.ndarray) -> float:
         result = simulator.simulate(gains, reference)
         return result.fitness
+
     return fitness
 
 
@@ -65,12 +67,16 @@ def optimize_variant(
     return np.mean(per_scenario_gains, axis=0)
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Scaling analysis experiment")
-    parser.add_argument("--rapido", action="store_true",
-                        help="Fast smoke test with reduced budget")
-    parser.add_argument("--output", type=str, default="results",
-                        help="Output directory")
+    parser.add_argument(
+        "--rapido", action="store_true",
+        help="Fast smoke test with reduced PSO budget",
+    )
+    parser.add_argument(
+        "--output", type=str, default="results",
+        help="Output directory",
+    )
     args = parser.parse_args()
 
     if args.rapido:
@@ -109,8 +115,10 @@ def main():
             num_runs=pso_config.num_runs,
         )
         optimal_gains[factor] = gains
-        print(f"   → Mean gains: Kp_z={gains[0]:.3f}, Ki_z={gains[1]:.3f}, "
-              f"Kd_z={gains[2]:.3f}")
+        print(
+            f"   → Mean gains: Kp_z={gains[0]:.3f}, Ki_z={gains[1]:.3f}, "
+            f"Kd_z={gains[2]:.3f}"
+        )
 
     # ------------------------------------------------------------------ #
     # Transfer evaluation
@@ -157,10 +165,12 @@ def main():
         metrics["target_factor"] = float(target_factor)
         transfer_results.append(metrics)
 
-        print(f"\n[{target_factor}×] "
-              f"opt={fit_opt:.4f}, scaled={fit_scaled:.4f}, "
-              f"unscaled={fit_unscaled:.4f}, "
-              f"improvement={metrics['improvement']:+.1f}%")
+        print(
+            f"\n[{target_factor}×] "
+            f"opt={fit_opt:.4f}, scaled={fit_scaled:.4f}, "
+            f"unscaled={fit_unscaled:.4f}, "
+            f"improvement={metrics['improvement']:+.1f}%"
+        )
 
     # ------------------------------------------------------------------ #
     # Save JSON
@@ -169,11 +179,12 @@ def main():
         "optimal_gains": {str(k): v.tolist() for k, v in optimal_gains.items()},
         "transfer": transfer_results,
         "timestamp": datetime.now().isoformat(),
+        "budget": "rapid" if args.rapido else "full",
     }
     json_path = os.path.join(out_dir, "scaling_results.json")
     with open(json_path, "w") as f:
         json.dump(serializable, f, indent=2)
-    print(f"\n✅ Saved: {json_path}")
+    print(f"\n Saved: {json_path}")
 
     # ------------------------------------------------------------------ #
     # Figures
@@ -190,6 +201,11 @@ def main():
     fig1 = plot_kp_scaling(
         masses, kp_z, kp_att, kd_z,
         output_path=os.path.join(out_dir, "fig1_kp_scaling.png"),
+        subtitle=(
+            "Reduced-budget rapid mode (10 particles, 10 iterations)"
+            if args.rapido
+            else "Full 30-run PSO budget"
+        ),
     )
     print(f"   Figure 1: {fig1}")
 
@@ -211,7 +227,7 @@ def main():
         print(f"   Figure 2: {fig2}")
 
     print("\n" + "=" * 60)
-    print("✅ SCALING ANALYSIS COMPLETE")
+    print("SCALING ANALYSIS COMPLETE")
     print("=" * 60)
 
 

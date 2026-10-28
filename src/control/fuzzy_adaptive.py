@@ -6,8 +6,7 @@ Implements a Mamdani-type fuzzy inference system that adaptively
 adjusts PID gains based on payload variation, turbulence level,
 battery state, and error dynamics.
 
-Author: Luis Adrián Silva Reyes
-Institution: Tijuana Institute of Technology
+Author: Luis Adrian Silva Reyes
 """
 
 from typing import Dict, List, Tuple
@@ -54,12 +53,16 @@ class TriangularMF(FuzzyMembershipFunction):
 
     def __call__(self, x: np.ndarray) -> np.ndarray:
         x = np.asarray(x, dtype=float)
-        left = np.where(x <= self.b,
-                        np.where(x >= self.a, (x - self.a) / (self.b - self.a), 0.0),
-                        0.0)
-        right = np.where(x >= self.b,
-                         np.where(x <= self.c, (self.c - x) / (self.c - self.b), 0.0),
-                         0.0)
+        left = np.where(
+            x <= self.b,
+            np.where(x >= self.a, (x - self.a) / (self.b - self.a), 0.0),
+            0.0,
+        )
+        right = np.where(
+            x >= self.b,
+            np.where(x <= self.c, (self.c - x) / (self.c - self.b), 0.0),
+            0.0,
+        )
         return np.maximum(left, right)
 
     def __repr__(self) -> str:
@@ -94,28 +97,28 @@ class FuzzyAdaptiveScaler:
     # ------------------------------------------------------------------ #
     def _init_membership_functions(self) -> None:
         """Initialize input and output membership functions."""
-        # Payload variation (percentage)
+        # Payload variation (percentage above nominal mass)
         self.payload_mfs: Dict[str, FuzzyMembershipFunction] = {
             "light": GaussianMF(0, 5),
             "medium": GaussianMF(15, 8),
             "heavy": GaussianMF(35, 10),
         }
 
-        # Turbulence level (0–1)
+        # Turbulence level (normalized 0-1)
         self.turbulence_mfs: Dict[str, FuzzyMembershipFunction] = {
             "calm": GaussianMF(0.1, 0.15),
             "moderate": GaussianMF(0.4, 0.15),
             "strong": GaussianMF(0.8, 0.15),
         }
 
-        # Battery state (0–1)
+        # Battery state (normalized 0-1)
         self.battery_mfs: Dict[str, FuzzyMembershipFunction] = {
             "low": GaussianMF(0.15, 0.10),
             "medium": GaussianMF(0.50, 0.15),
             "high": GaussianMF(0.85, 0.10),
         }
 
-        # Error dynamics (0–1)
+        # Error dynamics (normalized 0-1)
         self.error_mfs: Dict[str, FuzzyMembershipFunction] = {
             "small": GaussianMF(0.05, 0.08),
             "medium": GaussianMF(0.30, 0.12),
@@ -147,7 +150,7 @@ class FuzzyAdaptiveScaler:
             ("heavy", "calm", "high", "small", "high", "medium", "medium"),
             ("heavy", "calm", "high", "medium", "high", "high", "medium"),
             ("heavy", "calm", "high", "large", "very_high", "high", "high"),
-            # Strong turbulence — increased damping
+            # Strong turbulence - increased damping
             ("light", "strong", "high", "small", "high", "medium", "very_high"),
             ("light", "strong", "high", "medium", "high", "high", "very_high"),
             ("medium", "strong", "high", "large", "very_high", "high", "very_high"),
@@ -175,7 +178,9 @@ class FuzzyAdaptiveScaler:
                 for b in batt_terms:
                     for e in err_terms:
                         if (p, t, b, e) not in explicit_keys:
-                            full_rules.append((p, t, b, e, "medium", "medium", "medium"))
+                            full_rules.append(
+                                (p, t, b, e, "medium", "medium", "medium")
+                            )
 
         self.rules = full_rules
 
@@ -233,20 +238,36 @@ class FuzzyAdaptiveScaler:
     def _defuzzify(
         self, output_memberships: Dict[str, Dict[str, float]]
     ) -> Dict[str, float]:
-        """Defuzzify using the centroid method."""
+        """Defuzzify using the centroid method.
+
+        Uses ``np.trapezoid`` (NumPy >= 2.0) to integrate the aggregated
+        membership function. The legacy trapezoidal routine was deprecated
+        in NumPy 2.0.
+        """
+        # Universe of discourse for the gain-correction factor.
+        # Spans the full output range defined in _init_membership_functions.
         x = np.linspace(0.5, 2.0, 200)
         results: Dict[str, float] = {}
 
         for output_name, firing in output_memberships.items():
+            # Aggregate all rule consequents via max (Mamdani).
             aggregated = np.zeros_like(x)
             for mf_name, strength in firing.items():
                 if strength > 0.0:
-                    aggregated = np.maximum(aggregated, strength * self.output_mfs[mf_name](x))
+                    aggregated = np.maximum(
+                        aggregated,
+                        strength * self.output_mfs[mf_name](x),
+                    )
 
-            total = np.trapz(aggregated, x)
+            # Centroid = integral(x * mu) / integral(mu).
+            # The epsilon guard avoids division by zero when no rule fires.
+            total = np.trapezoid(aggregated, x)
             if total > 1e-9:
-                results[output_name] = float(np.trapz(x * aggregated, x) / total)
+                results[output_name] = float(
+                    np.trapezoid(x * aggregated, x) / total
+                )
             else:
+                # Default: no correction (alpha = 1.0).
                 results[output_name] = 1.0
 
         return results

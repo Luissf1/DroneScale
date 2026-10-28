@@ -125,8 +125,11 @@ class Simulator:
         e_z = reference[0] - z
 
         RMSE = float(np.sqrt(np.mean(e_z ** 2)))
-        IAE = float(np.trapz(np.abs(e_z), t))
-        ITSE = float(np.trapz(t * e_z ** 2, t))
+
+        # Use np.trapezoid (NumPy >= 2.0). The legacy trapezoidal
+        # routine was deprecated and will be removed in a future release.
+        IAE = float(np.trapezoid(np.abs(e_z), t))
+        ITSE = float(np.trapezoid(t * e_z ** 2, t))
 
         tol = self.tol_settling * max(abs(reference[0]), 1e-3)
         inside = np.abs(e_z) <= tol
