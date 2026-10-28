@@ -5,11 +5,16 @@ Fuzzy Adaptive Scaling Experiment
 Compares static scaling vs fuzzy adaptive scaling across various
 disturbance scenarios and quadrotor sizes.
 
+The baseline (1.0x) PID gains are loaded from the most recent scaling
+run in ``results/scaling_*/scaling_results.json`` if one exists,
+falling back to the thesis gains otherwise.
+
 Usage:
     python experiments/run_fuzzy_adaptive.py
 """
 
 import argparse
+import glob
 import json
 import os
 import sys
@@ -18,6 +23,7 @@ from typing import Dict, List
 
 import numpy as np
 
+# Allow running from the repository root.
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.dynamics.quadrotor_model import QuadrotorDynamics, QuadrotorParameters
@@ -29,16 +35,60 @@ from src.analysis.metrics import summarize_improvements
 from src.analysis.visualization import plot_fuzzy_improvements
 
 
-# Baseline gains from PSO (from scaling analysis / thesis)
-BASELINE_GAINS = np.array([
+# ---------------------------------------------------------------------- #
+# Baseline gains (fallback)
+# ---------------------------------------------------------------------- #
+# Default baseline gains from the thesis, used when no scaling run is
+# available. These were refined by PSO in the original thesis work and
+# are the source of the scaling transfer in the paper.
+_DEFAULT_BASELINE_GAINS = np.array([
     12.5, 1.25, 3.125,   # Altitude
     6.25, 0.075, 1.25,   # Roll
     6.25, 0.075, 1.25,   # Pitch
-    5.0, 0.05, 1.0       # Yaw
+    5.0, 0.05, 1.0,      # Yaw
 ])
 
 
+def load_baseline_gains() -> np.ndarray:
+    """Return the best available baseline (1.0x) PID gains.
+
+    Preference order:
+        1. The most recent full-budget scaling run under results/scaling_*.
+        2. A rapid-budget scaling run, if no full-budget run exists.
+        3. The hardcoded thesis gains (safe fallback).
+
+    Returns:
+        12-element numpy array of PID gains.
+    """
+    candidates = sorted(
+        glob.glob("results/scaling_*/scaling_results.json"),
+        key=lambda p: os.path.getmtime(p),
+        reverse=True,
+    )
+    for path in candidates:
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            gains = data.get("optimal_gains", {}).get("1.0")
+            if gains and len(gains) == 12:
+                print(f"[fuzzy] Loaded baseline gains from {path}")
+                return np.asarray(gains, dtype=float)
+        except (OSError, json.JSONDecodeError, KeyError):
+            # Skip malformed result files and try the next candidate.
+            continue
+
+    print("[fuzzy] No scaling results found; using thesis baseline gains.")
+    return _DEFAULT_BASELINE_GAINS
+
+
+BASELINE_GAINS = load_baseline_gains()
+
+
+# ---------------------------------------------------------------------- #
+# Helpers
+# ---------------------------------------------------------------------- #
 def build_dynamics(variant: Dict[str, float]) -> QuadrotorDynamics:
+    """Build a QuadrotorDynamics object from a variant dict."""
     params = QuadrotorParameters(
         mass=variant["mass"],
         arm_length=variant["arm_length"],
@@ -56,11 +106,11 @@ def evaluate_scenario(
     cost_weights=(0.3, 0.3, 0.2, 0.2),
 ) -> float:
     """Evaluate fitness under a scenario (payload & battery folded into params)."""
-    # Payload changes mass
+    # Payload increases effective mass.
     payload_mass = dynamics.params.mass * (1.0 + scenario.payload_pct / 100.0)
 
-    # Battery reduces available thrust authority — model as friction increase
-    # and slight inertia growth (approximate)
+    # Low battery reduces available thrust authority; model as a small
+    # increase in friction (a proxy for reduced control authority).
     battery_penalty = (1.0 - scenario.battery) * 0.15
 
     params = QuadrotorParameters(
@@ -73,7 +123,8 @@ def evaluate_scenario(
     )
     dyn = QuadrotorDynamics(params)
 
-    # Turbulence: add disturbance to reference
+    # Turbulence perturbs the reference; deterministic seed keeps
+    # repeated runs comparable.
     reference = scenario.reference.copy()
     if scenario.turbulence > 0:
         np.random.seed(1234)
@@ -84,7 +135,10 @@ def evaluate_scenario(
     return float(result.fitness)
 
 
-def main():
+# ---------------------------------------------------------------------- #
+# Main
+# ---------------------------------------------------------------------- #
+def main() -> None:
     parser = argparse.ArgumentParser(description="Fuzzy adaptive experiment")
     parser.add_argument("--output", type=str, default="results")
     args = parser.parse_args()
@@ -116,10 +170,10 @@ def main():
         print(f"\n[{target_factor}×] mass={v['mass']:.3f} kg")
 
         for sc in scenarios:
-            # Static scaling
+            # Static scaling baseline
             fit_static = evaluate_scenario(dyn, scaled_gains, sc)
 
-            # Fuzzy adaptive
+            # Fuzzy adaptive gains
             fuzzy_gains = fuzzy.apply_to_gains(
                 scaled_gains,
                 payload_variation=sc.payload_pct,
@@ -143,10 +197,12 @@ def main():
                 "improvement": improvement,
             })
 
-            print(f"   {sc.name:18s}: "
-                  f"static={fit_static:.4f}, "
-                  f"fuzzy={fit_fuzzy:.4f}, "
-                  f"impr={improvement:+.1f}%")
+            print(
+                f"   {sc.name:18s}: "
+                f"static={fit_static:.4f}, "
+                f"fuzzy={fit_fuzzy:.4f}, "
+                f"impr={improvement:+.1f}%"
+            )
 
     improvements = [r["improvement"] for r in results]
     summary = summarize_improvements(improvements)
@@ -159,11 +215,15 @@ def main():
     # Save JSON
     json_path = os.path.join(out_dir, "fuzzy_results.json")
     with open(json_path, "w") as f:
-        json.dump({
-            "results": results,
-            "summary": summary,
-            "timestamp": datetime.now().isoformat(),
-        }, f, indent=2)
+        json.dump(
+            {
+                "results": results,
+                "summary": summary,
+                "timestamp": datetime.now().isoformat(),
+            },
+            f,
+            indent=2,
+        )
     print(f"✅ Saved: {json_path}")
 
     # Figure: aggregate by scenario name (across sizes)
@@ -174,7 +234,8 @@ def main():
         mean_improvements.append(float(np.mean(vals)) if vals else 0.0)
 
     fig_path = plot_fuzzy_improvements(
-        scenario_names, mean_improvements,
+        scenario_names,
+        mean_improvements,
         output_path=os.path.join(out_dir, "fig4_fuzzy_improvements.png"),
     )
     print(f"   Figure: {fig_path}")

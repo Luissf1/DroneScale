@@ -8,8 +8,7 @@ for scaling analysis.
 
 State vector: [x, y, z, phi, theta, psi, vx, vy, vz, p, q, r]
 
-Author: Luis Adrián Silva Reyes
-Institution: Tijuana Institute of Technology
+Author: Luis Adrian Silva Reyes
 """
 
 from dataclasses import dataclass
