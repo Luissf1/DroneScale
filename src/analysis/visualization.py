@@ -43,14 +43,19 @@ def plot_kp_scaling(
 
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
     masses_arr = np.asarray(masses, dtype=float)
+    kp_z_arr = np.asarray(kp_z, dtype=float)
+    
+    # Identify the 1.0x outlier to exclude from the fit
+    outlier_idx = np.isclose(masses_arr, 1.0)
+    fit_mask = ~outlier_idx  # True for 0.5x, 2.0x, 5.0x; False for 1.0x
 
     # (a) Altitude Kp
-    fit = fit_power_law(masses_arr, np.asarray(kp_z))
+    fit = fit_power_law(masses_arr[fit_mask], kp_z_arr[fit_mask])
     axes[0].scatter(masses, kp_z, s=100, color="#1f77b4", zorder=5)
     m_fit = np.linspace(min(masses), max(masses), 100)
     axes[0].plot(
         m_fit, fit["a"] * m_fit ** fit["b"], "r-", linewidth=2,
-        label=f"$K_p \\propto m^{{{fit['b']:.2f}}}$",
+        label=f"$K_p \\propto m^{{{fit['b']:.2f}}}$ (excl. 1$\\times$)",
     )
     axes[0].set_xlabel("Mass (kg)")
     axes[0].set_ylabel("$K_p$ (Altitude)")
@@ -59,11 +64,12 @@ def plot_kp_scaling(
     axes[0].legend()
 
     # (b) Attitude average Kp
-    fit_att = fit_power_law(masses_arr, np.asarray(kp_attitude_avg))
+    kp_att_arr = np.asarray(kp_attitude_avg, dtype=float)
+    fit_att = fit_power_law(masses_arr[fit_mask], kp_att_arr[fit_mask])
     axes[1].scatter(masses, kp_attitude_avg, s=100, color="#ff7f0e", zorder=5)
     axes[1].plot(
         m_fit, fit_att["a"] * m_fit ** fit_att["b"], "r-", linewidth=2,
-        label=f"$K_p \\propto m^{{{fit_att['b']:.2f}}}$",
+        label=f"$K_p \\propto m^{{{fit_att['b']:.2f}}}$ (excl. 1$\\times$)",
     )
     axes[1].set_xlabel("Mass (kg)")
     axes[1].set_ylabel("$K_p$ (Attitude avg)")
@@ -71,7 +77,7 @@ def plot_kp_scaling(
     axes[1].grid(True, alpha=0.3)
     axes[1].legend()
 
-    # (c) Comparison of gain types
+    # (c) Comparison of gain types (unchanged)
     axes[2].scatter(masses, kp_z, s=80, label="$K_p$ (altitude)", alpha=0.7)
     axes[2].scatter(masses, kd_z, s=80, label="$K_d$ (altitude)", alpha=0.7)
     axes[2].scatter(masses, kp_attitude_avg, s=80, label="$K_p$ (attitude)", alpha=0.7)

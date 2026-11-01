@@ -198,6 +198,19 @@ def main() -> None:
         for f in factors_sorted
     ]
 
+    # ------------------------------------------------------------------ #
+    # Report scaling exponents (excluding 1.0x outlier)
+    # ------------------------------------------------------------------ #
+    from src.analysis.metrics import fit_power_law
+    masses_arr = np.array(masses)
+    mask = ~np.isclose(masses_arr, 1.0)  # exclude 1.0x
+    
+    fit_kpz = fit_power_law(masses_arr[mask], np.array(kp_z)[mask])
+    fit_kpatt = fit_power_law(masses_arr[mask], np.array(kp_att)[mask])
+    
+    print(f"\n[Scaling Exponents (excl. 1.0x)] Kp_z ∝ m^{fit_kpz['b']:.3f} (R²={fit_kpz['r_squared']:.3f})")
+    print(f"                                   Kp_att ∝ m^{fit_kpatt['b']:.3f} (R²={fit_kpatt['r_squared']:.3f})")
+
     fig1 = plot_kp_scaling(
         masses, kp_z, kp_att, kd_z,
         output_path=os.path.join(out_dir, "fig1_kp_scaling.png"),

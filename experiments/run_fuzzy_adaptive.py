@@ -53,32 +53,51 @@ def load_baseline_gains() -> np.ndarray:
     """Return the best available baseline (1.0x) PID gains.
 
     Preference order:
-        1. The most recent full-budget scaling run under results/scaling_*.
-        2. A rapid-budget scaling run, if no full-budget run exists.
-        3. The hardcoded thesis gains (safe fallback).
+        1. The most recent completed scaling run under results/scaling_*,
+           sorted by the ``timestamp`` field inside each JSON. This is
+           deterministic and does not depend on the file's mtime.
+        2. The hardcoded thesis gains (safe fallback).
 
     Returns:
         12-element numpy array of PID gains.
     """
-    candidates = sorted(
-        glob.glob("results/scaling_*/scaling_results.json"),
-        key=lambda p: os.path.getmtime(p),
-        reverse=True,
-    )
+    candidates = glob.glob("results/scaling_*/scaling_results.json")
+    if not candidates:
+        print("[fuzzy] No scaling results found; using thesis baseline gains.")
+        return _DEFAULT_BASELINE_GAINS
+
+    # Load each file and sort by the ISO timestamp stored inside it.
+    # Files without a valid timestamp are skipped.
+    loaded = []
     for path in candidates:
         try:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            gains = data.get("optimal_gains", {}).get("1.0")
-            if gains and len(gains) == 12:
-                print(f"[fuzzy] Loaded baseline gains from {path}")
-                return np.asarray(gains, dtype=float)
-        except (OSError, json.JSONDecodeError, KeyError):
-            # Skip malformed result files and try the next candidate.
+        except (OSError, json.JSONDecodeError):
             continue
+        
+        ts = data.get("timestamp")
+        gains = data.get("optimal_gains", {}).get("1.0")
+        if ts and gains and len(gains) == 12:
+            loaded.append((ts, path, gains, data.get("budget", "unknown")))
 
-    print("[fuzzy] No scaling results found; using thesis baseline gains.")
-    return _DEFAULT_BASELINE_GAINS
+    if not loaded:
+        print("[fuzzy] No valid scaling results found; using thesis baseline gains.")
+        return _DEFAULT_BASELINE_GAINS
+
+    # Pick the newest by ISO timestamp (lexicographic == chronological).
+    loaded.sort(key=lambda x: x[0], reverse=True)
+    ts, path, gains, budget = loaded[0]
+
+    # Warn if the newest run is a rapid-budget run (a hint that the user
+    # has not yet done the full 30-run analysis).
+    if budget == "rapid":
+        print("[fuzzy] WARNING: baseline loaded from a RAPID-budget run. "
+              "Run `python experiments/run_scaling_analysis.py` "
+              "(no --rapido) to get paper-quality baselines.")
+
+    print(f"[fuzzy] Loaded baseline gains from {path} (timestamp={ts})")
+    return np.asarray(gains, dtype=float)
 
 
 BASELINE_GAINS = load_baseline_gains()
